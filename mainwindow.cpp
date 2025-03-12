@@ -7,14 +7,21 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
+    contrast = 1.0;
+    brightness = 0;
+    kernel = 1;
+
     connect(ui->contrastResetButton, SIGNAL(clicked()), this, SLOT(do_resetContrast()));
     connect(ui->brightnessResetButton, SIGNAL(clicked()), this, SLOT(do_resetBrightness()));
     connect(ui->blurResetButton, SIGNAL(clicked()), this, SLOT(do_resetBlur()));
 
+    connect(ui->blurRadioButton, SIGNAL(clicked()), this, SLOT(do_resetBlur()));
+    connect(ui->gaussianRadioButton, SIGNAL(clicked()), this, SLOT(do_resetBlur()));
+    connect(ui->medianRadioButton, SIGNAL(clicked()), this, SLOT(do_resetBlur()));
+    connect(ui->bilateralRadioButton, SIGNAL(clicked()), this, SLOT(do_resetBlur()));
+
     connect(ui->actionload, SIGNAL(triggered()), this, SLOT(do_loadImage()));
     connect(ui->actionsave, SIGNAL(triggered()), this, SLOT(do_saveImage()));
-
-    connect(ui->tabWidget, SIGNAL(currentChanged(int index)), this, SLOT(writeToImageTemp()));
 
     if (cv::cuda::getCudaEnabledDeviceCount() > 0) qDebug() << "CUDA is supported!";
     else qDebug() << "CUDA is not supported or no device found.";
@@ -43,9 +50,9 @@ void MainWindow::do_loadImage()
             }
 
             cvtColor(imageData, imageData, COLOR_BGR2RGB);
-            imageTemp = imageData; // 确保数据连续
+            imageSrc = imageData.clone();
 
-            myImage = QImage((const unsigned char*)imageTemp.data, imageTemp.cols, imageTemp.rows, imageTemp.step, QImage::Format_RGB888).copy();
+            myImage = QImage((const unsigned char*)imageData.data, imageData.cols, imageData.rows, imageData.step, QImage::Format_RGB888).copy();
             if(myImage.isNull())
             {
                 qDebug() << "Failed to convert cv::Mat to QImage.";
@@ -72,14 +79,35 @@ void MainWindow::imageDisplay()
 }
 
 
-void MainWindow::basicImageProcess(float contrast, int brightness)
-{
-    // 重要！！！创建了一个独立于 cv::Mat 数据的 QImage 副本
-    //避免了原始数据被释放或修改时影响到 QImage
-    Mat imageSrc = imageTemp;
-    //Mat imageSrc = imageTemp.clone();
-    Mat imageDst;
-    imageSrc.convertTo(imageDst, -1, contrast, brightness);
+void MainWindow::imageProcess()
+{   
+    int kernelSize = (kernel % 2 == 1) ? kernel : kernel + 1;
+
+    imageSrc.convertTo(imageTemp, -1, contrast, brightness);
+
+
+    switch(nowMode)
+    {
+    case Mode::Blur:
+        cv::blur(imageTemp, imageDst, Size(kernelSize, kernelSize), Point(-1, -1));
+        break;
+
+    case Mode::GaussianBlur:
+        cv::GaussianBlur(imageTemp, imageDst, Size(kernelSize, kernelSize), 0, 0);
+        break;
+
+    case Mode::MedianBlur:
+        cv::medianBlur(imageTemp, imageDst, kernelSize);
+        break;
+
+    case Mode::BilateralFilter:
+        cv::bilateralFilter(imageTemp, imageDst, kernelSize, kernelSize * 2, kernelSize / 2);
+        break;
+
+    default:
+        imageDst = imageTemp.clone();
+        break;
+    }
 
     myImage = QImage((const unsigned char*)(imageDst.data),
                      imageDst.cols, imageDst.rows,
@@ -90,105 +118,38 @@ void MainWindow::basicImageProcess(float contrast, int brightness)
 }
 
 
-void MainWindow::blurImageProcess(int strength)
+void MainWindow::on_brightnessSlider_valueChanged(int value)
 {
-    if (imageTemp.empty())
-    {
-        qDebug() << "No Image." ;
-        return;
-    }
-    Mat imageSrc = imageTemp;
-    Mat imageDst;
-
-    int kernelSize = (strength % 2 == 1) ? strength : strength + 1;
-
-
-    switch(do_setBlurMode())
-    {
-        case BlurMode::Blur:
-            cv::blur(imageSrc, imageDst, Size(kernelSize, kernelSize), Point(-1, -1));
-            break;
-
-        case BlurMode::GaussianBlur:
-            cv::GaussianBlur(imageSrc, imageDst, Size(kernelSize, kernelSize), 0, 0);
-            break;
-
-        case BlurMode::MedianBlur:
-            cv::medianBlur(imageSrc, imageDst, kernelSize);
-            break;
-
-        case BlurMode::BilateralFilter:
-            cv::bilateralFilter(imageSrc, imageDst, kernelSize, kernelSize * 2, kernelSize / 2);
-            break;
-
-        default:
-            break;
-    }
-
-    myImage = QImage((const unsigned char*)(imageDst.data),
-                     imageDst.cols, imageDst.rows,
-                     imageDst.step, QImage::Format_RGB888).copy();
-
-    imageDisplay();
-}
-
-
-void MainWindow::writeToImageTemp()
-{
-}
-
-
-void MainWindow::on_contrastSlider_sliderMoved(int position)
-{
-    basicImageProcess(position / 33.0, 0);
+    nowMode = Mode::Basic;
+    brightness = value;
+    imageProcess();
 }
 
 void MainWindow::on_contrastSlider_valueChanged(int value)
 {
-    basicImageProcess(value / 33.0, 0);
-}
-void MainWindow::on_brightnessSlider_sliderMoved(int position)
-{
-    basicImageProcess(1.0, position);
-
-}
-void MainWindow::on_brightnessSlider_valueChanged(int value)
-{
-    basicImageProcess(1.0, value);
+    nowMode = Mode::Basic;
+    contrast = value / 33.0;
+    imageProcess();
 }
 
 
-BlurMode MainWindow::do_setBlurMode()
-{
-    if (ui->blurRadioButton->isChecked()) return BlurMode::Blur;
-    else if (ui->gaussianRadioButton->isChecked()) return BlurMode::GaussianBlur;
-    else if (ui->medianRadioButton->isChecked()) return BlurMode::MedianBlur;
-    else if (ui->bilateralRadioButton->isChecked()) return BlurMode::BilateralFilter;
-    else return BlurMode::Blur;
-}
-
-
-void MainWindow::on_blurSlider_sliderMoved(int position)
-{
-    blurImageProcess(position);
-}
 void MainWindow::on_blurSlider_valueChanged(int value)
 {
-    blurImageProcess(value);
+    if      (ui->blurRadioButton->isChecked())      nowMode = Mode::Blur;
+    else if (ui->gaussianRadioButton->isChecked())  nowMode = Mode::GaussianBlur;
+    else if (ui->medianRadioButton->isChecked())    nowMode = Mode::MedianBlur;
+    else if (ui->bilateralRadioButton->isChecked()) nowMode = Mode::BilateralFilter;
+
+    kernel = value;
+    imageProcess();
 }
 
 void MainWindow::do_resetBrightness()
-{
-    ui->brightnessSlider->setValue(0);
-}
+{ui->brightnessSlider->setValue(0);}
 void MainWindow::do_resetContrast()
-{
-    ui->contrastSlider->setValue(33);
-}
+{ui->contrastSlider->setValue(33);}
 void MainWindow::do_resetBlur()
-{
-    ui->blurSlider->setValue(1);
-}
+{ui->blurSlider->setValue(1);}
 
 void MainWindow::do_saveImage()
 {

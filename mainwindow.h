@@ -15,12 +15,14 @@ class MainWindow;
 }
 QT_END_NAMESPACE
 
-enum class BlurMode
+enum class Mode
 {
+    Basic,
     Blur,
     GaussianBlur,
     MedianBlur,
-    BilateralFilter
+    BilateralFilter,
+    None
 };
 
 class MainWindow : public QMainWindow
@@ -31,23 +33,16 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
-    void basicImageProcess(float contrast, int brightness);
-    void blurImageProcess(int strength);
+    void imageProcess();
 
-    void writeToImageTemp();
-
-    BlurMode do_setBlurMode();
     void imageDisplay();
 
 private slots:
-    void on_contrastSlider_sliderMoved(int position);
     void on_contrastSlider_valueChanged(int value);
-    void on_brightnessSlider_sliderMoved(int position);
     void on_brightnessSlider_valueChanged(int value);
 
-
-    void on_blurSlider_sliderMoved(int position);
     void on_blurSlider_valueChanged(int value);
+
 
     void do_resetContrast();
     void do_resetBrightness();
@@ -58,7 +53,15 @@ private slots:
 private:
     Ui::MainWindow *ui;
 
+    Mode nowMode;
+
+    float contrast;
+    int brightness;
+    int kernel;
+
     Mat imageTemp;
+    Mat imageSrc;
+    Mat imageDst;
     QImage myImage;
 
 };

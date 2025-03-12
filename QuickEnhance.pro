@@ -23,5 +23,7 @@ qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
+RC_ICONS = QE.ico
+
 INCLUDEPATH += C:\OpenCV_build\install\include
 LIBS += C:\OpenCV_build\install\x64\mingw\bin\libopencv_*.dll
