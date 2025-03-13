@@ -33,6 +33,8 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+    void resizeEvent(QResizeEvent *event);
+
     void imageProcess();
 
     void imageDisplay();

@@ -11,6 +11,7 @@ MainWindow::MainWindow(QWidget *parent)
     brightness = 0;
     kernel = 1;
 
+
     connect(ui->contrastResetButton, SIGNAL(clicked()), this, SLOT(do_resetContrast()));
     connect(ui->brightnessResetButton, SIGNAL(clicked()), this, SLOT(do_resetBrightness()));
     connect(ui->blurResetButton, SIGNAL(clicked()), this, SLOT(do_resetBlur()));
@@ -30,6 +31,13 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow()
 {
     delete ui;
+}
+
+// 重载窗口缩放的事件函数
+void MainWindow::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event);
+    imageDisplay(); // 窗口大小变化时更新图片显示
 }
 
 void MainWindow::do_loadImage()
@@ -70,12 +78,45 @@ void MainWindow::do_loadImage()
     do_resetBlur();
 }
 
+// 旧的显示函数，没有适配缩放
+// void MainWindow::imageDisplay()
+// {
+//     QSize labelSize = ui->image->size();
+
+//     ui->image->setPixmap(QPixmap::fromImage(myImage).scaled(labelSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+// }
 
 void MainWindow::imageDisplay()
 {
+    // 获取 QLabel 当前尺寸
     QSize labelSize = ui->image->size();
 
-    ui->image->setPixmap(QPixmap::fromImage(myImage).scaled(labelSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    // 原始图片的宽高比
+    qreal imageAspectRatio = myImage.width() / (qreal)myImage.height();
+
+    // 计算缩放后的尺寸，保持宽高比
+    QSize scaledSize;
+    if (imageAspectRatio > labelSize.width() / (qreal)labelSize.height())
+    {
+        // 如果图片更“扁”，以宽度为基准缩放
+        scaledSize.setWidth(labelSize.width());
+        scaledSize.setHeight(labelSize.width() / imageAspectRatio);
+    }
+    else
+    {
+        // 图片更“窄”，以高度为基准缩放
+        scaledSize.setHeight(labelSize.height());
+        scaledSize.setWidth(labelSize.height() * imageAspectRatio);
+    }
+
+    // 确保缩放后的尺寸不超过 QLabel 的大小
+    scaledSize = scaledSize.boundedTo(labelSize);
+
+    // 创建缩放后的 QPixmap
+    QPixmap scaledPixmap = QPixmap::fromImage(myImage).scaled(scaledSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+
+    // 设置Pixmap到Label
+    ui->image->setPixmap(scaledPixmap);
 }
 
 
