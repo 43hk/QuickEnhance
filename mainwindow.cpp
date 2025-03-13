@@ -80,11 +80,10 @@ void MainWindow::imageDisplay()
 
 
 void MainWindow::imageProcess()
-{   
-    int kernelSize = (kernel % 2 == 1) ? kernel : kernel + 1;
-
+{
     imageSrc.convertTo(imageTemp, -1, contrast, brightness);
 
+    int kernelSize = (kernel % 2 == 1) ? kernel : kernel + 1;
 
     switch(nowMode)
     {
@@ -105,9 +104,10 @@ void MainWindow::imageProcess()
         break;
 
     default:
-        imageDst = imageTemp.clone();
+        imageTemp.copyTo(imageDst);
         break;
     }
+
 
     myImage = QImage((const unsigned char*)(imageDst.data),
                      imageDst.cols, imageDst.rows,
@@ -120,14 +120,12 @@ void MainWindow::imageProcess()
 
 void MainWindow::on_brightnessSlider_valueChanged(int value)
 {
-    nowMode = Mode::Basic;
     brightness = value;
     imageProcess();
 }
 
 void MainWindow::on_contrastSlider_valueChanged(int value)
 {
-    nowMode = Mode::Basic;
     contrast = value / 33.0;
     imageProcess();
 }
