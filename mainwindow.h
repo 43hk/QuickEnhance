@@ -35,34 +35,37 @@ public:
 
     void resizeEvent(QResizeEvent *event);
 
-    void imageProcess();
+    void basicImageProcess(int brightness, float contrast);
+    void blurImageProcess(int kernel);
 
     void imageDisplay();
 
 private slots:
-    void on_contrastSlider_valueChanged(int value);
-    void on_brightnessSlider_valueChanged(int value);
+    void do_loadImage();
 
-    void on_blurSlider_valueChanged(int value);
+    void on_contrastSlider_sliderMoved(int position);
+    void on_brightnessSlider_sliderMoved(int position);
+    void on_blurSlider_sliderMoved(int position);
 
+    void writeToImage();
 
     void do_resetContrast();
     void do_resetBrightness();
     void do_resetBlur();
 
-    void do_loadImage();
+    void do_resetAll();
+    void do_resetBasicMode();
+    void do_resetBlurMode();
+
     void do_saveImage();
 private:
     Ui::MainWindow *ui;
 
     Mode nowMode;
+    bool alreadySave;
 
-    float contrast;
-    int brightness;
-    int kernel;
-
-    Mat imageTemp;
     Mat imageSrc;
+    Mat imageTemp;
     Mat imageDst;
     QImage myImage;
 

@@ -50,7 +50,7 @@
      </widget>
     </item>
     <item row="0" column="1">
-     <widget class="QTabWidget" name="tabWidget">
+     <widget class="QTabWidget" name="Tab">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
         <horstretch>0</horstretch>
@@ -104,45 +104,29 @@
           </widget>
          </item>
          <item>
-          <layout class="QHBoxLayout" name="horizontalLayout_2">
-           <item>
-            <widget class="QSlider" name="brightnessSlider">
-             <property name="minimum">
-              <number>-50</number>
-             </property>
-             <property name="maximum">
-              <number>50</number>
-             </property>
-             <property name="value">
-              <number>0</number>
-             </property>
-             <property name="sliderPosition">
-              <number>0</number>
-             </property>
-             <property name="orientation">
-              <enum>Qt::Orientation::Horizontal</enum>
-             </property>
-             <property name="tickPosition">
-              <enum>QSlider::TickPosition::TicksBelow</enum>
-             </property>
-             <property name="tickInterval">
-              <number>5</number>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="brightnessResetButton">
-             <property name="font">
-              <font>
-               <pointsize>12</pointsize>
-              </font>
-             </property>
-             <property name="text">
-              <string>重置</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
+          <widget class="QSlider" name="brightnessSlider">
+           <property name="minimum">
+            <number>-50</number>
+           </property>
+           <property name="maximum">
+            <number>50</number>
+           </property>
+           <property name="value">
+            <number>0</number>
+           </property>
+           <property name="sliderPosition">
+            <number>0</number>
+           </property>
+           <property name="orientation">
+            <enum>Qt::Orientation::Horizontal</enum>
+           </property>
+           <property name="tickPosition">
+            <enum>QSlider::TickPosition::TicksBelow</enum>
+           </property>
+           <property name="tickInterval">
+            <number>5</number>
+           </property>
+          </widget>
          </item>
          <item>
           <widget class="QLabel" name="contrastText">
@@ -157,39 +141,95 @@
           </widget>
          </item>
          <item>
-          <layout class="QHBoxLayout" name="horizontalLayout">
+          <widget class="QSlider" name="contrastSlider">
+           <property name="maximum">
+            <number>100</number>
+           </property>
+           <property name="value">
+            <number>33</number>
+           </property>
+           <property name="orientation">
+            <enum>Qt::Orientation::Horizontal</enum>
+           </property>
+           <property name="tickPosition">
+            <enum>QSlider::TickPosition::TicksBelow</enum>
+           </property>
+           <property name="tickInterval">
+            <number>5</number>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_4">
            <item>
-            <widget class="QSlider" name="contrastSlider">
-             <property name="maximum">
-              <number>100</number>
-             </property>
-             <property name="value">
-              <number>33</number>
-             </property>
+            <spacer name="horizontalSpacer_4">
              <property name="orientation">
               <enum>Qt::Orientation::Horizontal</enum>
              </property>
-             <property name="tickPosition">
-              <enum>QSlider::TickPosition::TicksBelow</enum>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
              </property>
-             <property name="tickInterval">
-              <number>5</number>
-             </property>
-            </widget>
+            </spacer>
            </item>
            <item>
-            <widget class="QPushButton" name="contrastResetButton">
-             <property name="font">
-              <font>
-               <pointsize>12</pointsize>
-              </font>
-             </property>
+            <widget class="QPushButton" name="basicResetButton">
              <property name="text">
               <string>重置</string>
              </property>
             </widget>
            </item>
+           <item>
+            <spacer name="horizontalSpacer_5">
+             <property name="orientation">
+              <enum>Qt::Orientation::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QPushButton" name="basicConfirmButton">
+             <property name="text">
+              <string>确定</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="horizontalSpacer_6">
+             <property name="orientation">
+              <enum>Qt::Orientation::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
           </layout>
+         </item>
+         <item>
+          <widget class="QLabel" name="label">
+           <property name="font">
+            <font>
+             <pointsize>12</pointsize>
+            </font>
+           </property>
+           <property name="text">
+            <string>请在切换功能的时候点击确定保存</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignmentFlag::AlignCenter</set>
+           </property>
+          </widget>
          </item>
          <item>
           <spacer name="verticalSpacer">
@@ -231,8 +271,11 @@
            <property name="text">
             <string>均值</string>
            </property>
-           <property name="checked">
+           <property name="checkable">
             <bool>true</bool>
+           </property>
+           <property name="checked">
+            <bool>false</bool>
            </property>
           </widget>
          </item>
@@ -273,39 +316,95 @@
           </widget>
          </item>
          <item>
+          <widget class="QSlider" name="blurSlider">
+           <property name="maximum">
+            <number>33</number>
+           </property>
+           <property name="value">
+            <number>1</number>
+           </property>
+           <property name="orientation">
+            <enum>Qt::Orientation::Horizontal</enum>
+           </property>
+           <property name="tickPosition">
+            <enum>QSlider::TickPosition::TicksBelow</enum>
+           </property>
+           <property name="tickInterval">
+            <number>1</number>
+           </property>
+          </widget>
+         </item>
+         <item>
           <layout class="QHBoxLayout" name="horizontalLayout_3">
            <item>
-            <widget class="QSlider" name="blurSlider">
-             <property name="maximum">
-              <number>33</number>
-             </property>
-             <property name="value">
-              <number>1</number>
-             </property>
+            <spacer name="horizontalSpacer">
              <property name="orientation">
               <enum>Qt::Orientation::Horizontal</enum>
              </property>
-             <property name="tickPosition">
-              <enum>QSlider::TickPosition::TicksBelow</enum>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
              </property>
-             <property name="tickInterval">
-              <number>1</number>
-             </property>
-            </widget>
+            </spacer>
            </item>
            <item>
             <widget class="QPushButton" name="blurResetButton">
-             <property name="font">
-              <font>
-               <pointsize>12</pointsize>
-              </font>
-             </property>
              <property name="text">
               <string>重置</string>
              </property>
             </widget>
            </item>
+           <item>
+            <spacer name="horizontalSpacer_3">
+             <property name="orientation">
+              <enum>Qt::Orientation::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QPushButton" name="blurConfirmButton">
+             <property name="text">
+              <string>确定</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="horizontalSpacer_2">
+             <property name="orientation">
+              <enum>Qt::Orientation::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
           </layout>
+         </item>
+         <item>
+          <widget class="QLabel" name="label_2">
+           <property name="font">
+            <font>
+             <pointsize>12</pointsize>
+            </font>
+           </property>
+           <property name="text">
+            <string>请在切换功能的时候点确定保存</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignmentFlag::AlignCenter</set>
+           </property>
+          </widget>
          </item>
          <item>
           <spacer name="verticalSpacer_2">
@@ -341,7 +440,7 @@
      <pointsize>15</pointsize>
     </font>
    </property>
-   <widget class="QMenu" name="menuQuickEnhance">
+   <widget class="QMenu" name="file">
     <property name="font">
      <font>
       <pointsize>12</pointsize>
@@ -350,20 +449,37 @@
     <property name="title">
      <string>文件</string>
     </property>
-    <addaction name="actionload"/>
-    <addaction name="actionsave"/>
+    <addaction name="actionLoad"/>
+    <addaction name="actionSave"/>
    </widget>
-   <addaction name="menuQuickEnhance"/>
+   <widget class="QMenu" name="operation">
+    <property name="font">
+     <font>
+      <pointsize>12</pointsize>
+     </font>
+    </property>
+    <property name="title">
+     <string>操作</string>
+    </property>
+    <addaction name="actionReset"/>
+   </widget>
+   <addaction name="file"/>
+   <addaction name="operation"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
-  <action name="actionload">
+  <action name="actionLoad">
    <property name="text">
     <string>读取</string>
    </property>
   </action>
-  <action name="actionsave">
+  <action name="actionSave">
    <property name="text">
     <string>另存为</string>
+   </property>
+  </action>
+  <action name="actionReset">
+   <property name="text">
+    <string>重置</string>
    </property>
   </action>
  </widget>

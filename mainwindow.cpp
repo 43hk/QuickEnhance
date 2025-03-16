@@ -7,22 +7,24 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
-    contrast = 1.0;
-    brightness = 0;
-    kernel = 1;
+    alreadySave = false;
 
+    connect(ui->basicConfirmButton, SIGNAL(clicked()), this, SLOT(writeToImage()));
+    connect(ui->blurConfirmButton, SIGNAL(clicked()), this, SLOT(writeToImage()));
 
-    connect(ui->contrastResetButton, SIGNAL(clicked()), this, SLOT(do_resetContrast()));
-    connect(ui->brightnessResetButton, SIGNAL(clicked()), this, SLOT(do_resetBrightness()));
-    connect(ui->blurResetButton, SIGNAL(clicked()), this, SLOT(do_resetBlur()));
+    connect(ui->blurRadioButton, SIGNAL(clicked()), this, SLOT(do_resetBlurMode()));
+    connect(ui->gaussianRadioButton, SIGNAL(clicked()), this, SLOT(do_resetBlurMode()));
+    connect(ui->medianRadioButton, SIGNAL(clicked()), this, SLOT(do_resetBlurMode()));
+    connect(ui->bilateralRadioButton, SIGNAL(clicked()), this, SLOT(do_resetBlurMode()));
 
-    connect(ui->blurRadioButton, SIGNAL(clicked()), this, SLOT(do_resetBlur()));
-    connect(ui->gaussianRadioButton, SIGNAL(clicked()), this, SLOT(do_resetBlur()));
-    connect(ui->medianRadioButton, SIGNAL(clicked()), this, SLOT(do_resetBlur()));
-    connect(ui->bilateralRadioButton, SIGNAL(clicked()), this, SLOT(do_resetBlur()));
+    connect(ui->Tab, SIGNAL(currentChanged(int)), this, SLOT(on_Tab_Changed(int)));
 
-    connect(ui->actionload, SIGNAL(triggered()), this, SLOT(do_loadImage()));
-    connect(ui->actionsave, SIGNAL(triggered()), this, SLOT(do_saveImage()));
+    connect(ui->basicResetButton, SIGNAL(clicked()), this, SLOT(do_resetBasicMode()));
+    connect(ui->blurResetButton, SIGNAL(clicked()), this, SLOT(do_resetBasicMode()));
+
+    connect(ui->actionLoad, SIGNAL(triggered()), this, SLOT(do_loadImage()));
+    connect(ui->actionSave, SIGNAL(triggered()), this, SLOT(do_saveImage()));
+    connect(ui->actionReset, SIGNAL(triggered()), this, SLOT(do_resetAll()));
 
     if (cv::cuda::getCudaEnabledDeviceCount() > 0) qDebug() << "CUDA is supported!";
     else qDebug() << "CUDA is not supported or no device found.";
@@ -59,6 +61,7 @@ void MainWindow::do_loadImage()
 
             cvtColor(imageData, imageData, COLOR_BGR2RGB);
             imageSrc = imageData.clone();
+            imageTemp = imageSrc.clone();
 
             myImage = QImage((const unsigned char*)imageData.data, imageData.cols, imageData.rows, imageData.step, QImage::Format_RGB888).copy();
             if(myImage.isNull())
@@ -77,14 +80,6 @@ void MainWindow::do_loadImage()
     do_resetBrightness();
     do_resetBlur();
 }
-
-// 旧的显示函数，没有适配缩放
-// void MainWindow::imageDisplay()
-// {
-//     QSize labelSize = ui->image->size();
-
-//     ui->image->setPixmap(QPixmap::fromImage(myImage).scaled(labelSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-// }
 
 void MainWindow::imageDisplay()
 {
@@ -112,18 +107,26 @@ void MainWindow::imageDisplay()
     // 确保缩放后的尺寸不超过 QLabel 的大小
     scaledSize = scaledSize.boundedTo(labelSize);
 
-    // 创建缩放后的 QPixmap
     QPixmap scaledPixmap = QPixmap::fromImage(myImage).scaled(scaledSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
-    // 设置Pixmap到Label
     ui->image->setPixmap(scaledPixmap);
 }
 
 
-void MainWindow::imageProcess()
+void MainWindow::basicImageProcess(int brightness, float contrast)
 {
-    imageSrc.convertTo(imageTemp, -1, contrast, brightness);
+    imageTemp.convertTo(imageDst, -1, contrast, brightness);
 
+    myImage = QImage((const unsigned char*)(imageDst.data),
+                     imageDst.cols, imageDst.rows,
+                     imageDst.step,
+                     QImage::Format_RGB888).copy();
+
+    imageDisplay();
+}
+
+void MainWindow::blurImageProcess(int kernel)
+{
     int kernelSize = (kernel % 2 == 1) ? kernel : kernel + 1;
 
     switch(nowMode)
@@ -145,10 +148,8 @@ void MainWindow::imageProcess()
         break;
 
     default:
-        imageTemp.copyTo(imageDst);
         break;
     }
-
 
     myImage = QImage((const unsigned char*)(imageDst.data),
                      imageDst.cols, imageDst.rows,
@@ -158,30 +159,70 @@ void MainWindow::imageProcess()
     imageDisplay();
 }
 
-
-void MainWindow::on_brightnessSlider_valueChanged(int value)
+void MainWindow::on_brightnessSlider_sliderMoved(int position)
 {
-    brightness = value;
-    imageProcess();
+    if (!alreadySave) do_resetBlurMode();
+    nowMode = Mode::Basic;
+    basicImageProcess(position, 1.0);
+    alreadySave = false;
 }
-
-void MainWindow::on_contrastSlider_valueChanged(int value)
+void MainWindow::on_contrastSlider_sliderMoved(int position)
 {
-    contrast = value / 33.0;
-    imageProcess();
+    if (!alreadySave) do_resetBlurMode();
+    nowMode = Mode::Basic;
+    basicImageProcess(0, position / 33.3);
+    alreadySave = false;
 }
-
-
-void MainWindow::on_blurSlider_valueChanged(int value)
+void MainWindow::on_blurSlider_sliderMoved(int position)
 {
+    if (!alreadySave) do_resetBasicMode();
+
     if      (ui->blurRadioButton->isChecked())      nowMode = Mode::Blur;
     else if (ui->gaussianRadioButton->isChecked())  nowMode = Mode::GaussianBlur;
     else if (ui->medianRadioButton->isChecked())    nowMode = Mode::MedianBlur;
     else if (ui->bilateralRadioButton->isChecked()) nowMode = Mode::BilateralFilter;
 
-    kernel = value;
-    imageProcess();
+    blurImageProcess(position);
+    alreadySave = false;
 }
+
+
+void MainWindow::writeToImage()
+{
+    alreadySave = true;
+
+    switch(nowMode)
+    {
+    case Mode::Basic:
+        do_resetBrightness();
+        do_resetContrast();
+        imageDst.copyTo(imageTemp);
+        break;
+    case Mode::Blur:
+        ui->blurRadioButton->setChecked(false);
+        do_resetBlur();
+        imageDst.copyTo(imageTemp);
+        break;
+    case Mode::GaussianBlur:
+        ui->gaussianRadioButton->setChecked(false);
+        do_resetBlur();
+        imageDst.copyTo(imageTemp);
+        break;
+    case Mode::MedianBlur:
+        ui->medianRadioButton->setChecked(false);
+        do_resetBlur();
+        imageDst.copyTo(imageTemp);
+        break;
+    case Mode::BilateralFilter:
+        ui->bilateralRadioButton->setChecked(false);
+        do_resetBlur();
+        imageDst.copyTo(imageTemp);
+        break;
+    default:
+        break;
+    }
+}
+
 
 void MainWindow::do_resetBrightness()
 {ui->brightnessSlider->setValue(0);}
@@ -189,6 +230,42 @@ void MainWindow::do_resetContrast()
 {ui->contrastSlider->setValue(33);}
 void MainWindow::do_resetBlur()
 {ui->blurSlider->setValue(1);}
+
+void MainWindow::do_resetAll()
+{
+    do_resetBrightness();
+    do_resetContrast();
+    do_resetBlur();
+    imageDst = imageSrc.clone();
+    myImage = QImage((const unsigned char*)(imageDst.data),
+                     imageDst.cols, imageDst.rows,
+                     imageDst.step,
+                     QImage::Format_RGB888).copy();
+    imageDisplay();
+}
+
+void MainWindow::do_resetBasicMode()
+{
+    do_resetBrightness();
+    do_resetContrast();
+    imageDst = imageTemp.clone();
+    myImage = QImage((const unsigned char*)(imageDst.data),
+                     imageDst.cols, imageDst.rows,
+                     imageDst.step,
+                     QImage::Format_RGB888).copy();
+    imageDisplay();
+}
+
+void MainWindow::do_resetBlurMode()
+{
+    do_resetBlur();
+    imageDst = imageTemp.clone();
+    myImage = QImage((const unsigned char*)(imageDst.data),
+                     imageDst.cols, imageDst.rows,
+                     imageDst.step,
+                     QImage::Format_RGB888).copy();
+    imageDisplay();
+}
 
 void MainWindow::do_saveImage()
 {
