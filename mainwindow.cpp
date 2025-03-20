@@ -4,9 +4,10 @@
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
-    , image(std::make_unique<GraphicData>())
+    , image(std::make_unique<GraphicData>(this))
 {
     ui->setupUi(this);
+    ui->Tab->setVisible(false);
 
     connect(ui->blurRadioButton,        SIGNAL(clicked()), this, SLOT(do_resetBlurMode()));
     connect(ui->gaussianRadioButton,    SIGNAL(clicked()), this, SLOT(do_resetBlurMode()));
@@ -18,6 +19,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->blurResetButton,        SIGNAL(clicked()), this, SLOT(do_resetBlurMode()));
     connect(ui->colorResetButton,       SIGNAL(clicked()), this, SLOT(do_resetColorMode()));
     connect(ui->transformerResetButton, SIGNAL(clicked()), this, SLOT(do_resetTransformerMode()));
+
+    connect(ui->equalizeHistCheckBox, &QCheckBox::checkStateChanged, [this](int){this->image->process();});
 
     connect(ui->actionLoad,     SIGNAL(triggered()), this, SLOT(do_loadImage()));
     connect(ui->actionSave,     SIGNAL(triggered()), this, SLOT(do_saveImage()));
@@ -42,18 +45,25 @@ void MainWindow::resizeEvent(QResizeEvent *event)
     QMainWindow::resizeEvent(event);
     imageDisplay(); // 窗口大小变化时更新图片显示
 }
-
+BlurMode MainWindow::getBlurMode()
+{
+    return nowMode;
+}
+bool MainWindow::isEqualizeHist()
+{
+    return ui->equalizeHistCheckBox->isChecked();
+}
 void MainWindow::do_loadImage()
 {
-    QString imagePath = QFileDialog::getOpenFileName(this, tr("打开图片"), "", tr("图片文件 (*.png *.jpg *.jpeg *.bmp);;All Files (*)"));
-    if (!imagePath.isEmpty())
+    originalImagePath = QFileDialog::getOpenFileName(this, tr("打开图片"), "", tr("图片文件 (*.png *.jpg *.jpeg *.bmp);;All Files (*)"));
+    if (!originalImagePath.isEmpty())
     {
-        QPixmap pixmap(imagePath);
+        QPixmap pixmap(originalImagePath);
         if (!pixmap.isNull())
         {
             ui->image->clear();
 
-            Mat imageData = imread(imagePath.toStdString());
+            Mat imageData = imread(originalImagePath.toStdString());
             if(imageData.empty())
             {
                 qDebug() << "Error: Failed to load image data.";
@@ -61,12 +71,18 @@ void MainWindow::do_loadImage()
             }
 
             cvtColor(imageData, imageData, COLOR_BGR2RGB);
-            image->src = imageData.clone();
-            image->temp = imageData.clone();
-            image->dst = imageData.clone();
-            do_resetAll();
-            //imageDisplay();
-            qDebug() << "Selected file path:" << imagePath;
+
+            imageData.copyTo(image->src);
+            imageData.copyTo(image->dst);
+
+            ui->Tab->setVisible(true);
+            // 由于初次加载图像池为空所以调用resetAll无法通过检查，在此依次调用子重置
+            do_resetBasicMode();
+            do_resetColorMode();
+            do_resetBlurMode();
+            do_resetTransformerMode();
+
+            qDebug() << "Selected file path:" << originalImagePath;
         }
         else {qDebug() << "Failed to load image.";}
     }
@@ -111,36 +127,89 @@ void MainWindow::imageDisplay()
 // ------------------------------
 // 图像处理方法
 // ------------------------------
-
-void GraphicData::process(BlurMode nowMode)
+void GraphicData::basicProcess()
 {
-    Mat tempBasic;
-    Mat tempColor;
-    Mat tempBlur;
-
-    if (brightness != 0 || contrast != 1.0)
+    // 基本线性变换
+    if      (brightness != 0 || contrast != 1.0) src.convertTo(tempBasic, -1, contrast, brightness);
+    else    src.copyTo(tempBasic);
+}
+void GraphicData::colorProcess()
+{
+    // 直方图均衡化
+    if (window->isEqualizeHist())
     {
-        temp.convertTo(tempBasic, -1, contrast, brightness);
-    }
-    else
-    {
-        temp.copyTo(tempBasic);
-    }
+        // 转换颜色空间到YCrCb
+        cv::cvtColor(tempBasic, tempEqual, cv::COLOR_RGB2YCrCb);
 
+        std::vector<cv::Mat> channels;
+        // 分割通道
+        cv::split(tempEqual, channels);
+
+        // 对Y通道进行直方图均衡化
+        cv::equalizeHist(channels[0], channels[0]);
+
+        // 合并通道
+        cv::merge(channels, tempEqual);
+
+        cv::cvtColor(tempEqual, tempEqual, cv::COLOR_YCrCb2RGB);
+    }
+    else tempBasic.copyTo(tempEqual);
+
+    //HSV色彩调整
     if (H != 0 || S != 1.0 || V != 1.0)
     {
-        adjustHSV(tempBasic).copyTo(tempColor);
-    }
-    else
-    {
-        tempBasic.copyTo(tempColor);
-    }
+        // 将图像从BGR颜色空间转换为HSV颜色空间
+        cv::cvtColor(tempEqual, tempHSV, cv::COLOR_RGB2HSV);
 
+        // 分离通道
+        std::vector<cv::Mat> channels;
+        cv::split(tempHSV, channels);
+
+        cv::Mat hue = channels[0];
+        cv::Mat saturation = channels[1];
+        cv::Mat value = channels[2];
+
+        // 调整色调（hue），注意处理溢出
+        if (H != 0)
+        {
+            hue += H;
+            // 处理溢出: HSV中Hue范围是0-180在OpenCV中
+            hue.setTo(0, hue < 0);
+            hue.setTo(180, hue > 180);
+        }
+
+        // 调整饱和度（saturation）和亮度（value）
+        if (S != 1.0)
+        {
+            saturation.convertTo(saturation, -1, S, 0);
+            // 确保像素值在0到255之间
+            cv::threshold(saturation, saturation, 255, 255, cv::THRESH_TRUNC);
+            cv::threshold(saturation, saturation, 0, 0, cv::THRESH_TOZERO);
+        }
+        if (V != 1.0)
+        {
+            value.convertTo(value, -1, V, 0);
+            // 确保像素值在0到255之间
+            cv::threshold(value, value, 255, 255, cv::THRESH_TRUNC);
+            cv::threshold(value, value, 0, 0, cv::THRESH_TOZERO);
+        }
+
+        // 合并通道
+        std::vector<cv::Mat> adjustedChannels = {hue, saturation, value};
+        cv::merge(adjustedChannels, tempHSV);
+
+        cv::cvtColor(tempHSV, tempColor, cv::COLOR_HSV2RGB);
+    }
+    else tempEqual.copyTo(tempColor);
+}
+void GraphicData::blurProcess()
+{
+    //平滑卷积
     if (kernel != 1)
     {
         // 确保卷积核宽度为奇数
         int kernelSize = (kernel % 2 == 1) ? kernel : kernel + 1;
-        switch(nowMode)
+        switch(window->getBlurMode())
         {
         case BlurMode::Blur:
             cv::blur(tempColor, tempBlur, Size(kernelSize, kernelSize), Point(-1, -1));
@@ -159,71 +228,47 @@ void GraphicData::process(BlurMode nowMode)
             tempColor.copyTo(tempBlur);
             break;
         }
+    }
+    else tempColor.copyTo(tempBlur);
+}
+void GraphicData::sharpenProcess()
+{
+    // 锐化操作
+    if(sharpenAmount != 0.0)
+    {
+        Mat mask;
+        cv::subtract(tempColor, tempBlur, mask);
+        cv::addWeighted(tempColor, 1.0 + sharpenAmount, mask, -sharpenAmount, 0, tempSharpend);
 
     }
-    else
-    {tempColor.copyTo(tempBlur);}
-
+    else tempBlur.copyTo(tempSharpend);
+}
+void GraphicData::transfromerProcess()
+{
+    // 几何操作
     if (angle != 0.0 || scale != 1.0)
     {
         Mat imageRot(2, 3, CV_32FC1);
         // 计算原图片的中心点
-        Point centerPoint = Point(tempBlur.cols / 2, tempBlur.rows / 2);
+        Point centerPoint = Point(tempSharpend.cols / 2, tempSharpend.rows / 2);
 
         imageRot = getRotationMatrix2D(centerPoint, angle, scale);
 
-        warpAffine(tempBlur, dst, imageRot, tempBlur.size());
+        warpAffine(tempSharpend, dst, imageRot, tempSharpend.size());
     }
-    else{tempBlur.copyTo(dst);}
+    else tempSharpend.copyTo(dst);
 }
-
-Mat GraphicData::adjustHSV(Mat tempBasic)
+void GraphicData::process()
 {
-    // 将图像从BGR颜色空间转换为HSV颜色空间
-    cv::cvtColor(tempBasic, tempBasic, cv::COLOR_RGB2HSV);
+    basicProcess();
+    colorProcess();
+    blurProcess();
+    sharpenProcess();
+    transfromerProcess();
 
-    // 分离通道
-    std::vector<cv::Mat> channels;
-    cv::split(tempBasic, channels);
-
-    cv::Mat hue = channels[0];
-    cv::Mat saturation = channels[1];
-    cv::Mat value = channels[2];
-
-    // 调整色调（hue），注意处理溢出
-    if (H != 0)
-    {
-        hue += H;
-        // 处理溢出: HSV中Hue范围是0-180在OpenCV中
-        hue.setTo(0, hue < 0);
-        hue.setTo(180, hue > 180);
-    }
-
-    // 调整饱和度（saturation）和亮度（value）
-    if (S != 1.0)
-    {
-        saturation.convertTo(saturation, -1, S, 0);
-        // 确保像素值在0到255之间
-        cv::threshold(saturation, saturation, 255, 255, cv::THRESH_TRUNC);
-        cv::threshold(saturation, saturation, 0, 0, cv::THRESH_TOZERO);
-    }
-    if (V != 1.0)
-    {
-        value.convertTo(value, -1, V, 0);
-        // 确保像素值在0到255之间
-        cv::threshold(value, value, 255, 255, cv::THRESH_TRUNC);
-        cv::threshold(value, value, 0, 0, cv::THRESH_TOZERO);
-    }
-
-    // 合并通道
-    std::vector<cv::Mat> adjustedChannels = {hue, saturation, value};
-    cv::merge(adjustedChannels, tempBasic);
-
-    Mat tempRGB;
-    cv::cvtColor(tempBasic, tempRGB, cv::COLOR_HSV2RGB);
-
-    return tempRGB;
+    window->imageDisplay();
 }
+
 
 // ------------------------------
 // 控件响应事件
@@ -232,26 +277,22 @@ Mat GraphicData::adjustHSV(Mat tempBasic)
 void MainWindow::on_brightnessSlider_sliderMoved(int position)
 {
     image->brightness = position;
-    image->process(nowMode);
-    imageDisplay();
+    image->process();
 }
 void MainWindow::on_brightnessSlider_valueChanged(int value)
 {
     image->brightness = value;
-    image->process(nowMode);
-    imageDisplay();
+    image->process();
 }
 void MainWindow::on_contrastSlider_sliderMoved(int position)
 {
     image->contrast = position / 33.0;
-    image->process(nowMode);
-    imageDisplay();
+    image->process();
 }
 void MainWindow::on_contrastSlider_valueChanged(int value)
 {
     image->contrast = value / 33.0;
-    image->process(nowMode);
-    imageDisplay();
+    image->process();
 }
 void MainWindow::on_blurSlider_sliderMoved(int position)
 {
@@ -261,8 +302,7 @@ void MainWindow::on_blurSlider_sliderMoved(int position)
     else if (ui->bilateralRadioButton->isChecked()) nowMode = BlurMode::BilateralFilter;
 
     image->kernel = position;
-    image->process(nowMode);
-    imageDisplay();
+    image->process();
 }
 void MainWindow::on_blurSlider_valueChanged(int value)
 {
@@ -272,69 +312,68 @@ void MainWindow::on_blurSlider_valueChanged(int value)
     else if (ui->bilateralRadioButton->isChecked()) nowMode = BlurMode::BilateralFilter;
 
     image->kernel = value;
-    image->process(nowMode);
-    imageDisplay();
+    image->process();
+}
+void MainWindow::on_sharpenSlider_sliderMoved(int position)
+{
+    image->sharpenAmount = position / 20.0;
+    image->process();
+}
+void MainWindow::on_sharpenSlider_valueChanged(int value)
+{
+    image->sharpenAmount = value / 20.0;
+    image->process();
 }
 void MainWindow::on_HSlider_sliderMoved(int position)
 {
     image->H = position;
-    image->process(nowMode);
-    imageDisplay();
+    image->process();
 }
 void MainWindow::on_HSlider_valueChanged(int value)
 {
     image->H = value;
-    image->process(nowMode);
-    imageDisplay();
+    image->process();
 }
 void MainWindow::on_SSlider_sliderMoved(int position)
 {
     image->S = position / 33.0;
-    image->process(nowMode);
-    imageDisplay();
+    image->process();
 }
 void MainWindow::on_SSlider_valueChanged(int value)
 {
     image->S = value / 33.0;
-    image->process(nowMode);
-    imageDisplay();
+    image->process();
 }
 void MainWindow::on_VSlider_sliderMoved(int position)
 {
     image->V = position / 33.0;
-    image->process(nowMode);
-    imageDisplay();
+    image->process();
 }
 void MainWindow::on_VSlider_valueChanged(int value)
 {
     image->V = value / 33.0;
-    image->process(nowMode);
-    imageDisplay();
+    image->process();
 }
 
 void MainWindow::on_minusButton_clicked()
 {
     image->scale -= 0.1;
-    image->process(nowMode);
-    imageDisplay();
+    image->process();
 }
 void MainWindow::on_plusButton_clicked()
 {
     image->scale += 0.1;
-    image->process(nowMode);
-    imageDisplay();
+    image->process();
 }
 void MainWindow::on_leftRotButton_clicked()
 {
     image->angle += 5.0;
-    image->process(nowMode);
-    imageDisplay();
+    image->process();
 }
 void MainWindow::on_rightRotButton_clicked()
 {
     image->angle -= 5.0;
-    image->process(nowMode);
-    imageDisplay();
+    image->process();
 }
 
 // ------------------------------
@@ -343,24 +382,36 @@ void MainWindow::on_rightRotButton_clicked()
 
 void MainWindow::do_resetAll()
 {
-    ui->brightnessSlider->setValue(0);
-    image->brightness = 0;
-    ui->contrastSlider->setValue(33);
-    image->contrast = 1.0;
-    ui->blurSlider->setValue(1);
-    image->kernel = 1;
-    ui->HSlider->setValue(0);
-    image->H = 0;
-    ui->SSlider->setValue(33);
-    image->S = 1.0;
-    ui->VSlider->setValue(33);
-    image->V = 1.0;
+    if (!myImage.isNull())
+    {
+        ui->brightnessSlider->setValue(0);
+        image->brightness = 0;
 
-    image->angle = 0.0;
-    image->scale = 1.0;
+        ui->contrastSlider->setValue(33);
+        image->contrast = 1.0;
 
-    image->process(BlurMode::None);
-    imageDisplay();
+        ui->blurSlider->setValue(1);
+        image->kernel = 1;
+        nowMode = BlurMode::None;
+
+        ui->sharpenSlider->setValue(0);
+        image->sharpenAmount = 0.0;
+        ui->equalizeHistCheckBox->setChecked(false);
+
+        ui->HSlider->setValue(0);
+        image->H = 0;
+        ui->SSlider->setValue(33);
+        image->S = 1.0;
+        ui->VSlider->setValue(33);
+        image->V = 1.0;
+
+        image->angle = 0.0;
+        image->scale = 1.0;
+
+
+        image->process();
+    }
+    else return;
 }
 
 void MainWindow::do_resetBasicMode()
@@ -369,17 +420,20 @@ void MainWindow::do_resetBasicMode()
     image->brightness = 0;
     ui->contrastSlider->setValue(33);
     image->contrast = 1.0;
+    ui->sharpenSlider->setValue(0);
+    image->sharpenAmount = 0.0;
 
-    image->process(nowMode);
-    imageDisplay();
+    image->process();
 }
 void MainWindow::do_resetBlurMode()
 {
     ui->blurSlider->setValue(1);
     image->kernel = 1;
+    ui->sharpenSlider->setValue(0);
+    image->sharpenAmount = 0.0;
 
-    image->process(BlurMode::None);
-    imageDisplay();
+    nowMode = BlurMode::None;
+    image->process();
 }
 void MainWindow::do_resetColorMode()
 {
@@ -390,32 +444,49 @@ void MainWindow::do_resetColorMode()
     ui->VSlider->setValue(33);
     image->V = 1.0;
 
-    image->process(nowMode);
-    imageDisplay();
+    ui->equalizeHistCheckBox->setChecked(false);
+
+    image->process();
 }
 void MainWindow::do_resetTransformerMode()
 {
     image->angle = 0.0;
     image->scale = 1.0;
 
-    image->process(nowMode);
-    imageDisplay();
+    image->process();
 }
 
 // ------------------------------
 // 图片保存方法
 // ------------------------------
-
 void MainWindow::do_saveImage()
 {
-    QString filename = QFileDialog::getSaveFileName(this, tr("保存图片"), "", tr("图片文件 (*.png *.jpg *.jpeg *.bmp);;所有文件 (*)"));
+    // 假设originalImagePath是存储原始图像路径的QString成员变量
+    QString originalFileName = QFileInfo(originalImagePath).fileName(); // 获取原始文件名（带扩展名）
+    QString baseName = QFileInfo(originalImagePath).completeBaseName(); // 获取不带扩展名的文件名
 
-    // 检查用户是否取消了保存操作
+    // 设置过滤器以显示不同格式的图片类型
+    QString filter = "PNG (*.png);;JPEG (*.jpg *.jpeg);;BMP (*.bmp)";
+    QString selectedFilter = "PNG (*.png)"; // 默认选中的过滤器
+
+    // 显示保存对话框
+    QString filename = QFileDialog::getSaveFileName(this, tr("保存图片"), baseName, filter, &selectedFilter);
+
     if (!filename.isEmpty())
     {
+        // 根据用户选择的过滤器确定文件格式并更新文件名后缀
+        if (selectedFilter.contains("PNG"))
+            filename += ".png";
+        else if (selectedFilter.contains("JPEG") || selectedFilter.contains("JPG"))
+            filename += ".jpg";
+        else if (selectedFilter.contains("BMP"))
+            filename += ".bmp";
+
         bool saved = myImage.save(filename);
 
-        if (saved) QMessageBox::information(this, tr("保存成功"), tr("图片已成功保存"));
-        else QMessageBox::warning(this, tr("保存失败"), tr("无法保存图片，请检查文件路径和权限"));
+        if (saved)
+            QMessageBox::information(this, tr("保存成功"), tr("图片已成功保存为: ") + filename);
+        else
+            QMessageBox::warning(this, tr("保存失败"), tr("无法保存图片，请检查文件路径和权限"));
     }
 }

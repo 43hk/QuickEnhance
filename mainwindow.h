@@ -17,6 +17,7 @@ class MainWindow;
 }
 QT_END_NAMESPACE
 
+
 enum class BlurMode
 {
     Blur,
@@ -25,14 +26,16 @@ enum class BlurMode
     BilateralFilter,
     None
 };
-
+class MainWindow;
 class GraphicData
 {
 public:
-    GraphicData() :
+    GraphicData(MainWindow* windowPtr) :
+        window(windowPtr),
         brightness(0),
         contrast(1.0f),
         kernel(1),
+        sharpenAmount(0.0f),
         H(0),
         S(1.0f),
         V(1.0f),
@@ -40,21 +43,35 @@ public:
         scale(1.0f){}
     ~GraphicData(){}
 
-    Mat adjustHSV(Mat temp);
-    void process(BlurMode nowMode);
-    void resetAll();
+    MainWindow *window;
 
-    int brightness;
+    void basicProcess();
+    void colorProcess();
+    void blurProcess();
+    void sharpenProcess();
+    void transfromerProcess();
+    void process();
+
+
+    int   brightness;
     float contrast;
-    int kernel;
-    int H;
+    int   kernel;
+    float sharpenAmount;
+    int   H;
     float S;
     float V;
     float angle;
     float scale;
 
     Mat src;
-    Mat temp;
+
+    Mat tempBasic;
+    Mat tempColor;
+    Mat tempEqual;
+    Mat tempHSV;
+    Mat tempBlur;
+    Mat tempSharpend;
+
     Mat dst;
 };
 
@@ -67,7 +84,8 @@ public:
     ~MainWindow();
 
     void resizeEvent(QResizeEvent *event);
-
+    BlurMode getBlurMode();
+    bool isEqualizeHist();
     void imageDisplay();
 
 private slots:
@@ -77,8 +95,11 @@ private slots:
     void on_contrastSlider_valueChanged(int value);
     void on_brightnessSlider_sliderMoved(int position);
     void on_brightnessSlider_valueChanged(int value);
+
     void on_blurSlider_sliderMoved(int position);
     void on_blurSlider_valueChanged(int value);
+    void on_sharpenSlider_sliderMoved(int position);
+    void on_sharpenSlider_valueChanged(int value);
 
     void on_HSlider_sliderMoved(int position);
     void on_HSlider_valueChanged(int value);
@@ -103,6 +124,8 @@ private slots:
 private:
     Ui::MainWindow *ui;
     std::unique_ptr<GraphicData> image;
+
+    QString originalImagePath;
 
     BlurMode nowMode = BlurMode::None;
 

@@ -36,10 +36,10 @@
        </size>
       </property>
       <property name="frameShape">
-       <enum>QFrame::Shape::Box</enum>
+       <enum>QFrame::Shape::NoFrame</enum>
       </property>
       <property name="frameShadow">
-       <enum>QFrame::Shadow::Sunken</enum>
+       <enum>QFrame::Shadow::Plain</enum>
       </property>
       <property name="lineWidth">
        <number>1</number>
@@ -78,7 +78,7 @@
        <enum>QTabWidget::TabPosition::North</enum>
       </property>
       <property name="currentIndex">
-       <number>2</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="basic">
        <attribute name="title">
@@ -215,9 +215,9 @@
         </layout>
        </widget>
       </widget>
-      <widget class="QWidget" name="blur">
+      <widget class="QWidget" name="blurAndSharpen">
        <attribute name="title">
-        <string>模糊</string>
+        <string>模糊锐化</string>
        </attribute>
        <widget class="QWidget" name="verticalLayoutWidget_2">
         <property name="geometry">
@@ -290,6 +290,35 @@
            </property>
            <property name="value">
             <number>1</number>
+           </property>
+           <property name="orientation">
+            <enum>Qt::Orientation::Horizontal</enum>
+           </property>
+           <property name="tickPosition">
+            <enum>QSlider::TickPosition::TicksBelow</enum>
+           </property>
+           <property name="tickInterval">
+            <number>1</number>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="label">
+           <property name="text">
+            <string>锐化</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QSlider" name="sharpenSlider">
+           <property name="minimum">
+            <number>0</number>
+           </property>
+           <property name="maximum">
+            <number>30</number>
+           </property>
+           <property name="value">
+            <number>0</number>
            </property>
            <property name="orientation">
             <enum>Qt::Orientation::Horizontal</enum>
@@ -441,6 +470,13 @@
            </property>
            <property name="tickInterval">
             <number>5</number>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="equalizeHistCheckBox">
+           <property name="text">
+            <string>直方图均衡化</string>
            </property>
           </widget>
          </item>
