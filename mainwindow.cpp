@@ -238,8 +238,9 @@ void GraphicData::sharpenProcess()
     {
         Mat mask;
         cv::subtract(tempColor, tempBlur, mask);
-        cv::addWeighted(tempColor, 1.0 + sharpenAmount, mask, -sharpenAmount, 0, tempSharpend);
-
+        cv::Scalar meanVal = cv::mean(mask); // 计算 mask 的均值
+        mask -= meanVal[0]; // 减去均值，使 mask 的均值为零
+        cv::addWeighted(tempColor, 1.0, mask, sharpenAmount, 0, tempSharpend);
     }
     else tempBlur.copyTo(tempSharpend);
 }
@@ -316,12 +317,12 @@ void MainWindow::on_blurSlider_valueChanged(int value)
 }
 void MainWindow::on_sharpenSlider_sliderMoved(int position)
 {
-    image->sharpenAmount = position / 20.0;
+    image->sharpenAmount = position / 10.0;
     image->process();
 }
 void MainWindow::on_sharpenSlider_valueChanged(int value)
 {
-    image->sharpenAmount = value / 20.0;
+    image->sharpenAmount = value / 10.0;
     image->process();
 }
 void MainWindow::on_HSlider_sliderMoved(int position)
